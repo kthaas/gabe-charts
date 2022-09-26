@@ -1,8 +1,36 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import styles from '../styles/Home.module.css'
+import { Box, Button, Typography } from "@mui/material";
+import Head from "next/head";
+import Image from "next/image";
+import { useState } from "react";
+import styles from "../styles/Home.module.css";
+import { useCSVReader } from "react-papaparse";
+import { LineChart, Line, CartesianGrid, XAxis, YAxis } from "recharts";
+import { DataGrid, GridActionsCellItem } from "@mui/x-data-grid";
+import DeleteIcon from "@mui/icons-material/Delete";
+
+function random_rgba() {
+  var o = Math.round,
+    r = Math.random,
+    s = 255;
+  return (
+    "rgba(" +
+    o(r() * s) +
+    "," +
+    o(r() * s) +
+    "," +
+    o(r() * s) +
+    "," +
+    r().toFixed(1) +
+    ")"
+  );
+}
 
 export default function Home() {
+  const [plotData, setPlotData] = useState([]);
+  const [numPlots, updateNumPlots] = useState(1);
+  const [plots, updatePlots] = useState([]);
+  const { CSVReader } = useCSVReader();
+
   return (
     <div className={styles.container}>
       <Head>
@@ -12,44 +40,104 @@ export default function Home() {
       </Head>
 
       <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
+        <h1 className={styles.title}>Welcome to Gabe charts</h1>
 
-        <p className={styles.description}>
-          Get started by editing{' '}
-          <code className={styles.code}>pages/index.js</code>
-        </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h2>Documentation &rarr;</h2>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h2>Learn &rarr;</h2>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className={styles.card}
+        <Box>
+          <CSVReader
+            onUploadAccepted={(results) => {
+              console.log("---------------------------");
+              console.log(results);
+              console.log("---------------------------");
+              const newPlotData = [...plotData];
+              for (const row of results.data) {
+                // If plotData has a row with the same x value, add this y value
+                // to the existing row, otherwise add a new row
+                const existingRow = newPlotData.find((r) => r.x === row[0]);
+                if (existingRow) {
+                  existingRow["y" + numPlots] = row[1];
+                } else {
+                  newPlotData.push({ x: row[0], ["y" + numPlots]: row[1] });
+                }
+                setPlotData(newPlotData);
+                updatePlots([
+                  ...plots,
+                  {
+                    id: numPlots,
+                    name: "Plot " + numPlots,
+                  },
+                ]);
+                updateNumPlots(numPlots + 1);
+              }
+            }}
           >
-            <h2>Examples &rarr;</h2>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
+            {({
+              getRootProps,
+              acceptedFile,
+              ProgressBar,
+              getRemoveFileProps,
+            }) => (
+              <>
+                <Button
+                  variant="contained"
+                  component="label"
+                  {...getRootProps()}
+                >
+                  Upload File
+                </Button>
+              </>
+            )}
+          </CSVReader>
+          <Box
+            sx={{
+              color: "black",
+              width: "90%",
+              backgroundColor: "white",
+              height: "200px",
+            }}
           >
-            <h2>Deploy &rarr;</h2>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
+            <DataGrid
+              rows={plots}
+              columns={[
+                { field: "name", headerName: "Name", width: 100 },
+                {
+                  field: "actions",
+                  type: "actions",
+                  getActions: (params) => [
+                    <GridActionsCellItem
+                      icon={<DeleteIcon />}
+                      onClick={() => {
+                        const newPlotData = [...plotData];
+                        for (const row of newPlotData) {
+                          delete row["y" + params.id];
+                        }
+                        setPlotData(newPlotData);
+                        updatePlots(plots.filter((p) => p.id !== params.id));
+                      }}
+                      label="Delete"
+                      key={params.id}
+                    />,
+                  ],
+                },
+              ]}
+            />
+          </Box>
+          {numPlots > 1 && (
+            <LineChart width={800} height={500} data={plotData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="x" />
+              <YAxis />
+              {Array.from(Array(numPlots).keys()).map((i) => (
+                <Line
+                  type="monotone"
+                  dataKey={"y" + i}
+                  activeDot={{ r: 8 }}
+                  stroke={random_rgba()}
+                  key={i}
+                />
+              ))}
+            </LineChart>
+          )}
+        </Box>
       </main>
 
       <footer className={styles.footer}>
@@ -58,12 +146,12 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Powered by{' '}
+          Powered by{" "}
           <span className={styles.logo}>
             <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
           </span>
         </a>
       </footer>
     </div>
-  )
+  );
 }
